@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Satellite,
@@ -27,6 +27,7 @@ import {
   Timer,
   Play,
   Square,
+  TrendingUp,
 } from 'lucide-react';
 import type { CalculatedSatellitePosition } from '../utils/satelliteMath.ts';
 import type { EarthquakeFeature, TelemetryFeature, WeatherIncident } from '../types/telemetry.ts';
@@ -65,6 +66,45 @@ export const EntityInspector: React.FC<EntityInspectorProps> = ({
 }) => {
   const [pulseDuration, setPulseDuration] = useState<number>(30);
   const [isActuating, setIsActuating] = useState<boolean>(false);
+  const [yieldForecast, setYieldForecast] = useState<any>(null);
+  const [isLoadingYield, setIsLoadingYield] = useState<boolean>(false);
+
+  // Query AI Yield Prediction Microservice on parcel selection
+  useEffect(() => {
+    if (!selectedParcel) {
+      setYieldForecast(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingYield(true);
+
+    fetch('/api/hasad/predict-yield', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mean_ndvi: selectedParcel.properties.ndvi,
+        soil_moisture_avg: selectedParcel.properties.soilMoisturePct,
+        season_temperature_avg: selectedParcel.properties.weatherSummary?.ambientTempC || 26.0,
+        crop_type: selectedParcel.properties.cropType,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (isMounted) {
+          setYieldForecast(data);
+          setIsLoadingYield(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoadingYield(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedParcel?.id, selectedParcel?.properties.soilMoisturePct, selectedParcel?.properties.ndvi]);
+
   const hasSelection =
     selectedSat ||
     selectedEarthquake ||
@@ -184,6 +224,69 @@ export const EntityInspector: React.FC<EntityInspectorProps> = ({
                   <div className="font-bold text-sky-400">{selectedParcel.properties.weatherSummary.rainProbabilityPct}%</div>
                 </div>
               </div>
+            </div>
+
+            {/* AI Yield Forecast Metric Card (FastAPI Microservice) */}
+            <div className="bg-gradient-to-br from-slate-900/90 to-cyan-950/40 border border-cyan-500/30 rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 font-bold text-cyan-300">
+                  <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>AI Yield Forecast</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 border border-cyan-500/30 text-cyan-400">
+                    92% CI
+                  </span>
+                  {yieldForecast && (
+                    <span
+                      className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                        yieldForecast.risk_category === 'LOW'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/40'
+                          : yieldForecast.risk_category === 'MODERATE_RISK'
+                          ? 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                          : 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                      }`}
+                    >
+                      {yieldForecast.risk_category.replace('_', ' ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {isLoadingYield ? (
+                <div className="py-2.5 flex items-center justify-center gap-2 text-[10px] text-cyan-400">
+                  <div className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  <span>Querying FastAPI Microservice...</span>
+                </div>
+              ) : yieldForecast ? (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-slate-950/80 p-2 rounded border border-slate-800">
+                      <div className="text-[9px] text-slate-400">PROJECTED HARVEST</div>
+                      <div className="text-sm font-bold text-slate-100 mt-0.5">
+                        {yieldForecast.predicted_yield_tons_per_ha}{' '}
+                        <span className="text-[10px] text-slate-400 font-normal">t/ha</span>
+                      </div>
+                    </div>
+                    <div className="bg-slate-950/80 p-2 rounded border border-slate-800">
+                      <div className="text-[9px] text-slate-400">BENCHMARK VARIANCE</div>
+                      <div
+                        className={`text-sm font-bold mt-0.5 ${
+                          yieldForecast.yield_variance_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {yieldForecast.yield_variance_pct >= 0 ? '+' : ''}
+                        {yieldForecast.yield_variance_pct}%
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-slate-300 leading-tight bg-slate-950/50 p-2 rounded border border-slate-800/80">
+                    <span className="text-cyan-400 font-bold">Agronomic Prescription: </span>
+                    {yieldForecast.recommended_action}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* Direct Solenoid Valve Actuation Control */}

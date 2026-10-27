@@ -10,6 +10,8 @@ import { telemetryService } from './server/services/telemetryService.ts';
 import { hasadService } from './server/services/hasadService.ts';
 import { sseRouter } from './server/routes/sse.ts';
 import { actuationRouter } from './server/routes/actuation.ts';
+import { reportsRouter } from './server/routes/reports.ts';
+import { actuationBridgeRouter } from './server/routes/actuationBridge.ts';
 import { cache } from './server/redisClient.ts';
 
 dotenv.config();
@@ -98,7 +100,9 @@ app.get('/api/incidents', async (req: Request, res: Response) => {
   }
 });
 
-// HASAD AgriTech & Predictive Actuation Routes
+// HASAD AgriTech, Reports, Hardware Bridge & Predictive Actuation Routes
+app.use('/api/hasad/reports', reportsRouter);
+app.use('/api/hasad', actuationBridgeRouter);
 app.use('/api/hasad', actuationRouter);
 
 app.get('/api/hasad/parcels', (req: Request, res: Response) => {

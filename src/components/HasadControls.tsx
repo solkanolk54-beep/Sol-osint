@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sprout,
   X,
@@ -12,6 +12,7 @@ import {
   Droplets,
   Gauge,
   Sparkles,
+  FileDown,
 } from 'lucide-react';
 import type { FieldParcelCollection, IoTSensorNode, HasadAgriHub } from '../types/hasad.ts';
 import { soundEngine } from '../utils/audioAlerts.ts';
@@ -78,6 +79,30 @@ export const HasadControls: React.FC<HasadControlsProps> = ({
     : '0.00';
   const activeValves = sensors.filter((s) => s.valveState === 'open' || s.valveState === 'flow_pulsing').length;
   const alertSensors = sensors.filter((s) => s.alertActive).length;
+
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    try {
+      setIsExportingPdf(true);
+      soundEngine.playRadarPing();
+      const res = await fetch('/api/hasad/reports/pdf');
+      if (!res.ok) throw new Error('PDF export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `HASAD-Executive-Report-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export PDF report:', err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   return (
     <aside className="absolute top-14 left-0 md:left-84 bottom-0 z-20 w-84 md:w-92 bg-slate-950/92 backdrop-blur-xl border-r border-emerald-500/30 text-slate-200 flex flex-col shadow-2xl transition-all font-sans select-none overflow-hidden">
@@ -345,6 +370,25 @@ export const HasadControls: React.FC<HasadControlsProps> = ({
         >
           <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
           <span>Synchronize Smart Irrigation Cycle</span>
+        </button>
+
+        {/* Export Executive PDF Report Action */}
+        <button
+          onClick={handleExportPdf}
+          disabled={isExportingPdf}
+          className="w-full py-2.5 rounded bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/40 hover:border-cyan-400 text-cyan-300 font-mono text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md group active:scale-[0.98]"
+        >
+          {isExportingPdf ? (
+            <>
+              <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+              <span>Generating PDF Intel...</span>
+            </>
+          ) : (
+            <>
+              <FileDown className="w-4 h-4 text-cyan-400 group-hover:translate-y-0.5 transition-transform" />
+              <span>Export Executive PDF Report</span>
+            </>
+          )}
         </button>
       </div>
     </aside>
