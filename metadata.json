@@ -1,0 +1,6 @@
+{
+  "name": "SOL-OSINT | HASAD-Live Precision AgriTech & Telemetry Engine",
+  "description": "Real-time global telemetry and precision agriculture intelligence platform featuring predictive yield forecasting, automated solenoid irrigation triggers, SGP4 orbital tracking, weather radar, and 3D geospatial analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
